@@ -11,6 +11,7 @@ from app.routes.transaction import router as transaction_router
 from app.price_fetcher import price_fetching_scheduler
 from app.routes.user import user_router
 from app.routes.imports import import_router # Import the new import router
+from app.routes.price import router as price_router # Import the new price router
 
 print("Running DCA Wallet Backend Swagger on: http://localhost:8000/docs")
 load_dotenv() # Carrega as variáveis de ambiente do .env
@@ -44,6 +45,7 @@ app.include_router(wallet_router, prefix="/api/wallets", tags=["Wallets"])
 app.include_router(transaction_router, prefix="/api/transactions", tags=["Transactions"])
 app.include_router(user_router, prefix="/api/user", tags=["User Information"])
 app.include_router(import_router, prefix="/api/import", tags=["Data Import"]) # Include the new import router
+app.include_router(price_router, prefix="/api/price", tags=["Price Data"]) # Include the new price router
 
 app.add_middleware(
     CORSMiddleware,

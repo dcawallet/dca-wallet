@@ -287,3 +287,27 @@ curl -X POST "http://localhost:8000/api/import/coinmarketcap" \
 -F "file=@additional_transactions.csv;type=text/csv" \
 -F "wallet_id=YOUR_WALLET_ID_HERE"
 ```
+
+---
+
+## Price Data (Dados de Preço)
+
+### 1. Obter Dados Atuais do Preço do Bitcoin (`GET /api/price/bitcoin_price`)
+
+Esta rota retorna os preços atuais do Bitcoin em USD e BRL, a taxa de câmbio USD/BRL da CurrencyAPI e a taxa USD/BRL calculada a partir dos preços do BTC.
+
+```bash
+curl -X GET "http://localhost:8000/api/price/bitcoin_price"
+```
+
+**Exemplo de Resposta:**
+
+```json
+{
+    "btc_usd_price": 70000.00,
+    "btc_brl_price": 350000.00,
+    "last_updated": "2025-09-17T18:45:37.058943+00:00",
+    "usd_brl_currencyapi": 5.00,
+    "usd_brl_calculated": 5.00
+}
+```
