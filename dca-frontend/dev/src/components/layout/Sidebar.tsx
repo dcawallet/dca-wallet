@@ -32,7 +32,7 @@ const Sidebar = () => {
           <GitFork size={18} />
           <span>Contribute</span>
         </Link>
-        <Link to="https://github.com" className="flex items-center space-x-2 px-4 py-2 text-gray-300 hover:bg-zinc-800 rounded-md">
+        <Link to="https://github.com/dcawallet/dca-wallet" className="flex items-center space-x-2 px-4 py-2 text-gray-300 hover:bg-zinc-800 rounded-md">
           <Star size={18} />
           <span>Github</span>
         </Link>
