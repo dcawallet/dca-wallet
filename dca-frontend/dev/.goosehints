@@ -1,0 +1,32 @@
+# Projeto Frontend - React com TypeScript
+
+## Contexto
+- Projeto desenvolvido em React com TypeScript.
+- Arquitetura modularizada por componentes, utilizando React Hooks para gerenciamento de estado e efeitos colaterais.
+
+## Preferências de Estilo
+- **Formatação:** ESLint e Prettier são mandatórios para manter a consistência do código.
+- **Componentização:** Componentes pequenos, reutilizáveis e com responsabilidade única.
+- **Tipagem:** Uso rigoroso de TypeScript para garantir tipagem forte em todo o projeto.
+- **Hooks:** Preferência por React Hooks para lógica de componentes e reutilização de estado.
+
+## Organização de Código
+- **Componentes:** `src/components/` (componentes genéricos e reutilizáveis).
+- **Páginas/Telas:** `src/pages/` (componentes de alto nível que representam rotas/páginas).
+- **Hooks Customizados:** `src/hooks/` (lógica reutilizável encapsulada em custom hooks).
+- **Utilitários:** `src/utils/` (funções auxiliares e constantes).
+- **Estilos:** `src/styles/` (variáveis de estilo, temas globais).
+
+## Regras de Desenvolvimento
+- **Lógica em Componentes:** Evitar lógica de negócio complexa diretamente dentro dos componentes; preferir extraí-la para hooks customizados ou serviços.
+- **Testes:** Priorizar testes unitários para componentes, hooks e utilitários críticos.
+- **Convenções de Commit:** Seguir as convenções de commits para manter um histórico limpo e legível.
+
+## Fluxo de Trabalho
+- **Antes de PRs:** Sempre rodar `npm run lint` e `npm run test` localmente antes de abrir um Pull Request.
+
+## Documentação
+- Para informações mais detalhadas e como fonte de verdade, consulte @documentation.md (se existir).
+
+## Instruções para Goose
+- Se a certeza for menor que 95%, pergunte antes de agir.
