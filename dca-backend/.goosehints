@@ -1,0 +1,35 @@
+# Goose Hints for DCA Wallet Backend
+
+Este é o backend do projeto DCA Wallet, construído com FastAPI e MongoDB.
+
+**Objetivo:** Gerenciar carteiras, transações, estratégias DCA e cotações de Bitcoin.
+
+**Estrutura:**
+- `app/`: Contém a lógica principal (core, db, models, routes, services).
+- `bitcoin_price.json`: Cache de preço do Bitcoin.
+- `documentation.md`: Documentação técnica detalhada do backend.
+
+**Tecnologias:**
+- Python 3.9+
+- FastAPI (framework web)
+- MongoDB (banco de dados)
+- Uvicorn (servidor ASGI)
+- Docker/Docker Compose
+
+**Padrões de Desenvolvimento:**
+- Variáveis de ambiente são carregadas de `.env` (ex: `MONGO_URI`, `JWT_SECRET_KEY`).
+- Testes: Não especificado, mas idealmente com pytest.
+- Autenticação: Baseada em JWT, com segurança em `app/core/security.py` e rotas em `app/routes/auth.py`.
+
+**Regras Importantes:**
+- **Segurança:** Sempre validar entradas e garantir que JWTs sejam manuseados corretamente.
+- **Conexão MongoDB:** Usar `mongodb://localhost:27018/` para o host e `mongodb://mongo:27017/` para containers Docker.
+- **Preço BTC:** A lógica de busca e cache está em `app/price_fetcher.py` e `bitcoin_price.json`.
+
+**Referências:**
+- `@documentation.md`: Para detalhes técnicos adicionais, estrutura de diretórios e variáveis de ambiente.
+- `@app/main.py`: Ponto de entrada da aplicação FastAPI.
+- `@requirements.txt`: Dependências do projeto.
+
+**Instrução para Goose:**
+Se não tiver certeza de ≥ 95% sobre o que deve ser feito, peça esclarecimentos antes de agir.
