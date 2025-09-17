@@ -9,7 +9,7 @@ import os
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27018/")
 print(f"DEBUG: MONGO_URI from env: {MONGO_URI}")
-DATABASE_NAME = os.getenv("DATABASE_NAME", "dcawallet")
+DATABASE_NAME = os.getenv("DATABASE_NAME", "dcawallet_db")
 
 class Database:
     client: AsyncIOMotorClient = None

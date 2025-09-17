@@ -161,10 +161,10 @@ Para as rotas de transação, você precisará do `ACCESS_TOKEN` obtido no login
 # Substitua YOUR_WALLET_ID_HERE pelo ID de uma carteira existente
 # Substitua $TOKEN pelo seu token JWT real
 curl -X POST "http://localhost:8000/api/transactions/" \
--H "Authorization: Bearer $TOKEN" \
+-H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTgwNDc2MjIsInN1YiI6InRlc3RlIn0.xp-OhlCcpXNqGdI0UQuKxiFEmuxiIqxvTJlrUDwXRhg" \
 -H "Content-Type: application/json" \
 -d '{
-  "wallet_id": "YOUR_WALLET_ID_HERE",
+  "wallet_id": "68b76c5d910263644f2812a3",
   "transaction_type": "manual_buy",
   "amount_btc": 0.0005,
   "price_per_btc_usd": 70000.00,
