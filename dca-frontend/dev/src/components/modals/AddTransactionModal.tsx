@@ -1,21 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { X, ChevronDown } from 'lucide-react';
 import { createTransaction } from '../../lib/api/transactions';
-import { listWallets } from '../../lib/api/wallets'; // Import listWallets
-import { Wallet } from '../../lib/api/types'; // Import Wallet type
+import { listWallets } from '../../lib/api/wallets';
+import { Wallet } from '../../lib/api/types';
 
 interface AddTransactionModalProps {
   onClose: () => void;
   onTransactionAdded: () => void;
-  initialWalletId: string; // Renamed for clarity as it's the default
-  initialWalletCurrency: string; // Renamed for clarity
+  initialWalletId: string;
+  btcUsdPrice?: number;
+  usdBrlRate?: number;
 }
 
 const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   onClose,
   onTransactionAdded,
   initialWalletId,
-  initialWalletCurrency,
+  btcUsdPrice,
+  usdBrlRate,
 }) => {
   const [activeTab, setActiveTab] = useState<'buy' | 'sell'>('buy');
   const [amountBtc, setAmountBtc] = useState<number | ''>('');
@@ -27,7 +29,7 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
   const [allWallets, setAllWallets] = useState<Wallet[]>([]);
   const [selectedWalletIdForTransaction, setSelectedWalletIdForTransaction] = useState(initialWalletId);
-  const [displayCurrency, setDisplayCurrency] = useState(initialWalletCurrency);
+  const [displayCurrency, setDisplayCurrency] = useState('USD');
   const [loadingWallets, setLoadingWallets] = useState(true);
 
   useEffect(() => {
@@ -36,13 +38,11 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       try {
         const fetchedWallets = await listWallets();
         setAllWallets(fetchedWallets);
-        // If initialWalletId is provided, try to find it and set as selected
         const defaultWallet = fetchedWallets.find(w => w.id === initialWalletId);
         if (defaultWallet) {
           setSelectedWalletIdForTransaction(defaultWallet.id);
           setDisplayCurrency(defaultWallet.currency);
         } else if (fetchedWallets.length > 0) {
-          // If initialWalletId not found or not provided, default to the first wallet
           setSelectedWalletIdForTransaction(fetchedWallets[0].id);
           setDisplayCurrency(fetchedWallets[0].currency);
         }
@@ -53,7 +53,17 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       }
     };
     fetchAndSetWallets();
-  }, [initialWalletId, initialWalletCurrency]);
+  }, [initialWalletId]);
+
+  useEffect(() => {
+    if (btcUsdPrice !== undefined && usdBrlRate !== undefined) {
+      if (displayCurrency === 'USD') {
+        setPricePerBtc(btcUsdPrice);
+      } else if (displayCurrency === 'BRL') {
+        setPricePerBtc(btcUsdPrice * usdBrlRate);
+      }
+    }
+  }, [btcUsdPrice, usdBrlRate, displayCurrency]);
 
   const handleWalletChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newWalletId = e.target.value;
@@ -64,7 +74,6 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     }
   };
 
-  // Calculate total value based on amount_btc and price_per_btc
   const totalValue = (typeof amountBtc === 'number' && typeof pricePerBtc === 'number')
     ? (amountBtc * pricePerBtc)
     : 0;
@@ -77,12 +86,8 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       setError('Please select a wallet.');
       return;
     }
-    if (!amountBtc || !pricePerBtc || typeof amountBtc !== 'number' || typeof pricePerBtc !== 'number') {
-      setError('Please enter valid numbers for amount and price.');
-      return;
-    }
-    if (amountBtc <= 0 || pricePerBtc <= 0) {
-      setError('Amount and price must be greater than zero.');
+    if (typeof amountBtc !== 'number' || typeof pricePerBtc !== 'number' || amountBtc <= 0 || pricePerBtc <= 0) {
+      setError('Please enter valid positive numbers for amount and price.');
       return;
     }
 
@@ -94,8 +99,8 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         wallet_id: selectedWalletIdForTransaction,
         transaction_type: transactionType,
         amount_btc: amountBtc,
-        price_per_btc_usd: pricePerBtc,
-        total_value_usd: totalValue,
+        price_per_btc_usd: displayCurrency === 'BRL' && usdBrlRate ? pricePerBtc / usdBrlRate : pricePerBtc,
+        total_value_usd: displayCurrency === 'BRL' && usdBrlRate ? totalValue / usdBrlRate : totalValue,
         currency: displayCurrency,
         notes: notes || undefined,
       };
@@ -126,7 +131,6 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
           </div>
         )}
 
-        {/* Wallet Selection Dropdown */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-zinc-400 mb-1">
             Select Wallet

@@ -9,6 +9,7 @@ import ImportDataModal from '../components/modals/ImportDataModal';
 import { listWallets } from '../lib/api/wallets';
 import { listTransactions } from '../lib/api/transactions';
 import { Wallet, Transaction } from '../lib/api/types';
+import { useBitcoinPrice } from '../hooks/useBitcoinPrice'; // Importar o hook
 
 // Sample data for the chart
 const data = [
@@ -20,14 +21,14 @@ const data = [
   { date: '25', value: 1700 },
 ];
 
-// Mock current BTC price (replace with real API call when available)
-const MOCK_CURRENT_BTC_PRICE_USD = 116315;
+// REMOVER: Mock current BTC price (replace with real API call when available)
+// const MOCK_CURRENT_BTC_PRICE_USD = 116315;
 
-// Conversion rates (for demo purposes)
-const conversionRates = {
-  USD: 1,
-  BRL: 5.31, // 1 USD = 5.2 BRL
-};
+// REMOVER: Conversion rates (for demo purposes) - será atualizado dinamicamente
+// const conversionRates = {
+//   USD: 1,
+//   BRL: 5.31, // 1 USD = 5.2 BRL
+// };
 
 const DashboardPage = () => {
   const [selectedTimeRange, setSelectedTimeRange] = useState('24h');
@@ -42,6 +43,9 @@ const DashboardPage = () => {
   const [currentBtcBalance, setCurrentBtcBalance] = useState(0);
   const [currentUsdValue, setCurrentUsdValue] = useState(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+
+  // Usar o hook useBitcoinPrice
+  const { priceData, loading: loadingPrice, error: priceError } = useBitcoinPrice();
 
   // States for toggling display formats
   const [btcDisplayMode, setBtcDisplayMode] = useState<'btc' | 'sats'>('btc');
@@ -64,7 +68,7 @@ const DashboardPage = () => {
     if (selectedWallet) {
       fetchTransactionsAndCalculateBalance(selectedWallet.id);
     }
-  }, [selectedWallet]);
+  }, [selectedWallet, priceData]); // Adicionar priceData como dependência
 
   const fetchWallets = async () => {
     setLoadingWallets(true);
@@ -96,7 +100,12 @@ const DashboardPage = () => {
         }
       }
       setCurrentBtcBalance(btcTotal);
-      setCurrentUsdValue(btcTotal * MOCK_CURRENT_BTC_PRICE_USD);
+      // Usar priceData.btc_usd_price para calcular o valor em USD
+      if (priceData?.btc_usd_price) {
+        setCurrentUsdValue(btcTotal * priceData.btc_usd_price);
+      } else {
+        setCurrentUsdValue(0);
+      }
 
     } catch (err: any) {
       console.error('Failed to fetch transactions or calculate balance:', err);
@@ -125,7 +134,9 @@ const DashboardPage = () => {
   // Get current currency value
   const getCurrentCurrencyValue = () => {
     const currency = availableCurrencies[currencyIndex];
-    const rate = conversionRates[currency as keyof typeof conversionRates] || 1;
+    // Usar priceData.usd_brl_calculated para a taxa BRL
+    const usdToBrlRate = priceData?.usd_brl_calculated || 1; // Default 1 se não houver dados
+    const rate = currency === 'USD' ? 1 : usdToBrlRate;
     return (currentUsdValue * rate).toFixed(2);
   };
 
@@ -153,11 +164,14 @@ const DashboardPage = () => {
       {walletsError && <p className="text-red-500">Error: {walletsError}</p>}
       {!loadingWallets && wallets.length === 0 && <p>No wallets found. Create one!</p>}
 
-      {selectedWallet && (
+      {priceError && <p className="text-red-500">Error fetching price data: {priceError}</p>}
+      {loadingPrice && <p>Loading current Bitcoin prices...</p>}
+
+      {selectedWallet && priceData && ( // Renderizar somente se tiver priceData
         <WalletSelector wallets={wallets} selectedWallet={selectedWallet} onSelectWallet={setSelectedWallet} />
       )}
 
-      {selectedWallet && (
+      {selectedWallet && priceData && ( // Renderizar somente se tiver priceData
         <div className="mt-8">
           <div className="flex justify-between items-center mb-4">
             <div>
@@ -245,8 +259,10 @@ const DashboardPage = () => {
         <AddTransactionModal
           onClose={() => setAddTransactionModalOpen(false)}
           onTransactionAdded={() => fetchTransactionsAndCalculateBalance(selectedWallet.id)}
-          initialWalletId={selectedWallet.id} 
-          initialWalletCurrency={selectedWallet.currency} 
+          initialWalletId={selectedWallet.id}
+          initialWalletCurrency={selectedWallet.currency}
+          btcUsdPrice={priceData?.btc_usd_price} // Passar o preço atual do BTC em USD
+          usdBrlRate={priceData?.usd_brl_calculated} // Passar a taxa USD/BRL
         />
       )}
       {isReceiveModalOpen && <ReceiveModal onClose={() => setReceiveModalOpen(false)} />}
