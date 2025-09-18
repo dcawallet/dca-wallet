@@ -3,6 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { loginUser, registerUser } from '../lib/api/auth';
 import { useAuth } from '../contexts/AuthContext';
 
+// Import all background components
+import DarkVeil from '../components/DarkVeil';
+import RippleGrid from '../components/RippleGrid';
+import FaultyTerminal from '../components/FaultyTerminal';
+import GradientBlinds from '../components/GradientBlinds';
+import Lightning from '../components/Lightning';
+import Plasma from '../components/Plasma';
+
 const AuthPage = () => {
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
@@ -11,6 +19,41 @@ const AuthPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [isRegistering, setIsRegistering] = useState(false); // State to toggle between login and register
   const { login } = useAuth();
+
+  // --- Background Selection ---
+  // Change this index to switch between different background components.
+  // 0: DarkVeil (current default dark background)
+  // 1: RippleGrid (interactive grid with ripple effects)
+  // 2: FaultyTerminal (glitchy, terminal-like background)
+  // 3: GradientBlinds (animated gradient blinds effect)
+  // 4: Lightning (dynamic lightning bolt effects)
+  // 5: Plasma (fluid, ethereal plasma-like animation)
+  const backgroundIndex: number = 5; 
+
+  const renderBackground = (index: number) => {
+    switch (index) {
+      case 0:
+        // Default dark background - you can add props if DarkVeil accepts any
+        return <DarkVeil hueShift={216}/>;
+      case 1:
+        // RippleGrid: Customize grid color and ripple intensity
+        return <RippleGrid gridColor="#E66100" rippleIntensity={0.01} gridSize={18}  gridThickness={5}  fadeDistance={1.8} vignetteStrength={3.8} glowIntensity={0.8} enableRainbow={false}/>;
+      case 2:
+        // FaultyTerminal: Add props here if needed
+        return <FaultyTerminal tint='#E66100' scale={1.8} digitSize={2.5} noiseAmp={0.7} brightness={1}  scanlineIntensity={1} curvature={0.4} mouseStrength={1.7}/>;
+      case 3:
+        // GradientBlinds: Add props here if needed
+        return <GradientBlinds gradientColors={['#E66100', '#db8649ff']} angle={50}  noise={0.25} blindCount={16} distortAmount={0}/>;
+      case 4:
+        // Lightning: Add props here if needed
+        return <Lightning hue={20} xOffset={0} speed={0.2} intensity={0.7} size={1.1}/>;
+      case 5:
+        // Plasma: Add props here if needed
+        return <Plasma color='#E66100' speed={0.3} scale={0.8}  opacity={1} mouseInteractive={false}/>;
+      default:
+        return <DarkVeil />; // Fallback to default
+    }
+  };
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,8 +92,14 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-black text-white">
-      <div className="w-full max-w-md p-8 space-y-8">
+    <div className="relative flex items-center justify-center min-h-screen bg-black text-white">
+      {/* Background Layer */}
+      <div className="absolute inset-0 z-0 overflow-hidden">
+        {renderBackground(backgroundIndex)}
+      </div>
+
+      {/* Login Form Layer (above background) */}
+      <div className="relative z-10 w-full max-w-md p-8 space-y-8">
         <div className="text-center">
           <h1 className="text-4xl font-bold flex justify-center items-center">
             DCA Wallet
@@ -137,3 +186,4 @@ const AuthPage = () => {
 };
 
 export default AuthPage;
+
