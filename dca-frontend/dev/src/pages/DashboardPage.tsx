@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { PlusIcon, QrCodeIcon, DownloadCloud } from 'lucide-react';
 import WalletSelector from '../components/dashboard/WalletSelector';
@@ -9,26 +9,9 @@ import ImportDataModal from '../components/modals/ImportDataModal';
 import { listWallets } from '../lib/api/wallets';
 import { listTransactions } from '../lib/api/transactions';
 import { Wallet, Transaction } from '../lib/api/types';
-import { useBitcoinPrice } from '../hooks/useBitcoinPrice'; // Importar o hook
-
-// Sample data for the chart
-const data = [
-  { date: '20', value: 1000 },
-  { date: '21', value: 1200 },
-  { date: '22', value: 1100 },
-  { date: '23', value: 1400 },
-  { date: '24', value: 1300 },
-  { date: '25', value: 1700 },
-];
-
-// REMOVER: Mock current BTC price (replace with real API call when available)
-// const MOCK_CURRENT_BTC_PRICE_USD = 116315;
-
-// REMOVER: Conversion rates (for demo purposes) - será atualizado dinamicamente
-// const conversionRates = {
-//   USD: 1,
-//   BRL: 5.31, // 1 USD = 5.2 BRL
-// };
+import { useBitcoinPrice } from '../hooks/useBitcoinPrice';
+import mockBitcoinPrices from '../assets/bitcoin_prices_last_30_days.json';
+import { format, parseISO, getMonth } from 'date-fns';
 
 const DashboardPage = () => {
   const [selectedTimeRange, setSelectedTimeRange] = useState('24h');
@@ -44,13 +27,11 @@ const DashboardPage = () => {
   const [currentUsdValue, setCurrentUsdValue] = useState(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
 
-  // Usar o hook useBitcoinPrice
   const { priceData, loading: loadingPrice, error: priceError } = useBitcoinPrice();
 
-  // States for toggling display formats
   const [btcDisplayMode, setBtcDisplayMode] = useState<'btc' | 'sats'>('btc');
   const [currencyIndex, setCurrencyIndex] = useState(0);
-  const availableCurrencies = ['USD', 'BRL']; // This would come from user preferences in a real app
+  const availableCurrencies = ['USD', 'BRL'];
 
   const timeRanges = [
     { id: '24h', label: '24h' },
@@ -68,7 +49,7 @@ const DashboardPage = () => {
     if (selectedWallet) {
       fetchTransactionsAndCalculateBalance(selectedWallet.id);
     }
-  }, [selectedWallet, priceData]); // Adicionar priceData como dependência
+  }, [selectedWallet, priceData]);
 
   const fetchWallets = async () => {
     setLoadingWallets(true);
@@ -77,7 +58,7 @@ const DashboardPage = () => {
       const fetchedWallets = await listWallets();
       setWallets(fetchedWallets);
       if (fetchedWallets.length > 0) {
-        setSelectedWallet(fetchedWallets[0]); // Select the first wallet by default
+        setSelectedWallet(fetchedWallets[0]);
       }
     } catch (err: any) {
       setWalletsError(err.message || 'Failed to load wallets.');
@@ -100,7 +81,6 @@ const DashboardPage = () => {
         }
       }
       setCurrentBtcBalance(btcTotal);
-      // Usar priceData.btc_usd_price para calcular o valor em USD
       if (priceData?.btc_usd_price) {
         setCurrentUsdValue(btcTotal * priceData.btc_usd_price);
       } else {
@@ -115,30 +95,139 @@ const DashboardPage = () => {
     }
   };
 
-  // Toggle between BTC and sats display
   const toggleBtcDisplay = () => {
     setBtcDisplayMode(btcDisplayMode === 'btc' ? 'sats' : 'btc');
   };
 
-  // Toggle between available currencies
   const toggleCurrency = () => {
     setCurrencyIndex((currencyIndex + 1) % availableCurrencies.length);
   };
 
-  // Get current currency symbol
   const getCurrentCurrencySymbol = () => {
     const currency = availableCurrencies[currencyIndex];
     return currency === 'USD' ? '$' : currency === 'BRL' ? 'R$' : currency;
   };
 
-  // Get current currency value
+  const chartData = useMemo(() => {
+    if (!priceData || currentBtcBalance === 0) {
+      return mockBitcoinPrices.map(p => ({ date: p.date, value: 0 }));
+    }
+
+    const usdBrlRate = priceData.usd_brl_calculated || 1;
+
+    // Ensure mockBitcoinPrices is sorted ascending by date
+    const sortedPrices = [...mockBitcoinPrices].sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
+
+    return sortedPrices.map(price => {
+      const portfolioValueUsd = currentBtcBalance * price.price_usd;
+      const portfolioValueBrl = portfolioValueUsd * usdBrlRate;
+      const displayValue = availableCurrencies[currencyIndex] === 'USD' ? portfolioValueUsd : portfolioValueBrl;
+
+      return {
+        date: price.date,
+        value: displayValue,
+      };
+    });
+  }, [mockBitcoinPrices, currentBtcBalance, priceData, availableCurrencies, currencyIndex]);
+
+  const yAxisDomain = useMemo(() => {
+    if (chartData.length === 0 || currentBtcBalance === 0) {
+      return [0, 'auto'];
+    }
+
+    const values = chartData.map(d => d.value);
+    const minValue = Math.min(...values);
+    const maxValue = Math.max(...values);
+
+    const paddedMin = minValue * 0.98;
+    const paddedMax = maxValue * 1.02;
+
+    const finalMin = Math.min(paddedMin, minValue * 0.98);
+    const finalMax = Math.max(paddedMax, maxValue * 1.02);
+
+    return [finalMin, finalMax];
+  }, [chartData, currentBtcBalance]);
+
   const getCurrentCurrencyValue = () => {
     const currency = availableCurrencies[currencyIndex];
-    // Usar priceData.usd_brl_calculated para a taxa BRL
-    const usdToBrlRate = priceData?.usd_brl_calculated || 1; // Default 1 se não houver dados
+    const usdToBrlRate = priceData?.usd_brl_calculated || 1;
     const rate = currency === 'USD' ? 1 : usdToBrlRate;
     return (currentUsdValue * rate).toFixed(2);
   };
+
+  const formatCurrencyTick = (tickValue: number) => {
+    return `${getCurrentCurrencySymbol()} ${tickValue.toFixed(2)}`;
+  };
+
+  const CustomXTick = (props: any) => {
+    const { x, y, payload, index } = props;
+    const dateStr = payload.value;
+    const date = parseISO(dateStr);
+
+    const day = format(date, 'dd');
+    const monthAbbr = format(date, 'MMM');
+
+    let showMonth = false;
+    if (index === 0) {
+      showMonth = true;
+    } else {
+      // Ensure we are comparing with the actual previous data point in chartData
+      const prevDateStr = chartData[index - 1].date;
+      const prevDate = parseISO(prevDateStr);
+      if (getMonth(date) !== getMonth(prevDate)) {
+        showMonth = true;
+      }
+    }
+
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <text x={0} y={0} dy={16} textAnchor="middle" fill="#666" fontSize={12}>
+          {day}
+        </text>
+        {showMonth && (
+          <text x={0} y={0} dy={36} textAnchor="middle" fill="#999" fontSize={12}> {/* Adjusted dy and fontSize */}
+            {monthAbbr}
+          </text>
+        )}
+      </g>
+    );
+  };
+
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      const date = parseISO(label);
+      const formattedDate = format(date, 'MMM dd');
+
+      return (
+        <div className="bg-zinc-800 p-3 rounded-md border border-zinc-700">
+          <p className="text-zinc-400 text-sm">{formattedDate}</p>
+          <p className="text-white font-bold">
+            {getCurrentCurrencySymbol()} {payload[0].value.toFixed(2)}
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const portfolioChange = useMemo(() => {
+    if (chartData.length < 2) {
+      return { absolute: 0, percentage: 0, isPositive: true };
+    }
+
+    const firstValue = chartData[0].value;
+    const lastValue = chartData[chartData.length - 1].value;
+
+    const absoluteChange = lastValue - firstValue;
+    const percentageChange = firstValue === 0 ? 0 : (absoluteChange / firstValue) * 100;
+    const isPositive = absoluteChange >= 0;
+
+    return {
+      absolute: absoluteChange,
+      percentage: percentageChange,
+      isPositive: isPositive,
+    };
+  }, [chartData]);
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -154,9 +243,6 @@ const DashboardPage = () => {
           <button onClick={() => setAddTransactionModalOpen(true)} className="px-6 py-2 bg-[#ff9416] text-white rounded-full flex items-center">
             <PlusIcon size={16} className="mr-2" /> add transaction
           </button>
-          {/* <button onClick={() => setReceiveModalOpen(true)} className="px-6 py-2 bg-[#ff9416] text-white rounded-full flex items-center">
-            <QrCodeIcon size={16} className="mr-2" /> receive
-          </button> */}
         </div>
       </div>
 
@@ -167,11 +253,11 @@ const DashboardPage = () => {
       {priceError && <p className="text-red-500">Error fetching price data: {priceError}</p>}
       {loadingPrice && <p>Loading current Bitcoin prices...</p>}
 
-      {selectedWallet && priceData && ( // Renderizar somente se tiver priceData
+      {selectedWallet && priceData && (
         <WalletSelector wallets={wallets} selectedWallet={selectedWallet} onSelectWallet={setSelectedWallet} />
       )}
 
-      {selectedWallet && priceData && ( // Renderizar somente se tiver priceData
+      {selectedWallet && priceData && (
         <div className="mt-8">
           <div className="flex justify-between items-center mb-4">
             <div>
@@ -197,9 +283,13 @@ const DashboardPage = () => {
                     {availableCurrencies[currencyIndex]}
                   </span>
                 </p>
-                <p className="ml-3 text-green-500">
-                  + 96.48 <span className="text-green-500">▲ 6.32%</span>{' '}
-                  <span className="text-zinc-500 text-xs">24h</span>
+                <p className={`ml-3 ${portfolioChange.isPositive ? 'text-green-500' : 'text-red-500'}`}>
+                  {portfolioChange.isPositive ? '+' : ''}
+                  {getCurrentCurrencySymbol()} {portfolioChange.absolute.toFixed(2)}{' '}
+                  <span className={portfolioChange.isPositive ? 'text-green-500' : 'text-red-500'}>
+                    {portfolioChange.isPositive ? '▲' : '▼'} {portfolioChange.percentage.toFixed(2)}%
+                  </span>{' '}
+                  <span className="text-zinc-500 text-xs">{selectedTimeRange}</span>
                 </p>
               </div>
             </div>
@@ -217,11 +307,11 @@ const DashboardPage = () => {
           </div>
           <div className="bg-zinc-900 rounded-lg p-4 h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data} margin={{
+              <AreaChart data={chartData} margin={{
                 top: 10,
                 right: 30,
                 left: 0,
-                bottom: 0,
+                bottom: 40,
               }}>
                 <defs>
                   <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
@@ -229,9 +319,17 @@ const DashboardPage = () => {
                     <stop offset="95%" stopColor="#ff9416" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="date" stroke="#666" />
-                <YAxis stroke="#666" />
+                <XAxis dataKey="date" stroke="#666" tick={CustomXTick} interval="preserveStart" />
+                <YAxis
+                  stroke="#666"
+                  domain={yAxisDomain}
+                  tickFormatter={formatCurrencyTick}
+                  orientation="right"
+                  width={100}
+                />
                 <Tooltip
+                  content={CustomTooltip}
+                  cursor={{ stroke: '#ff9416', strokeWidth: 1 }}
                   contentStyle={{ backgroundColor: '#18181b', border: 'none', borderRadius: '8px' }}
                   itemStyle={{ color: '#fff' }}
                   labelStyle={{ color: '#999' }}
@@ -261,8 +359,8 @@ const DashboardPage = () => {
           onTransactionAdded={() => fetchTransactionsAndCalculateBalance(selectedWallet.id)}
           initialWalletId={selectedWallet.id}
           initialWalletCurrency={selectedWallet.currency}
-          btcUsdPrice={priceData?.btc_usd_price} // Passar o preço atual do BTC em USD
-          usdBrlRate={priceData?.usd_brl_calculated} // Passar a taxa USD/BRL
+          btcUsdPrice={priceData?.btc_usd_price}
+          usdBrlRate={priceData?.usd_brl_calculated}
         />
       )}
       {isReceiveModalOpen && <ReceiveModal onClose={() => setReceiveModalOpen(false)} />}
