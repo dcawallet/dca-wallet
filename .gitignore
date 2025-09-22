@@ -12,8 +12,6 @@ node_modules/
 dist/
 *.log
 
-# Vite build
-dca-frontend/app/
 
 # VSCode
 .vscode/
@@ -26,10 +24,8 @@ Thumbs.db
 mongo-data/
 
 # Bitcoin price (should be local, for optimization)
-dca-backend/bitcoin_price.json
+dcaw-backend/bitcoin_price.json
 
-
-#local/   - readded for short time, remove later
 
 
 # Others
