@@ -50,7 +50,6 @@ DATABASE_NAME='dcawallet_db'
 JWT_SECRET_KEY='supersecretjwtkey'
 JWT_ALGORITHM='HS256'
 ACCESS_TOKEN_EXPIRE_MINUTES='30'
-CURRENCY_API_URL='api_key'
 ```
 
 > Note: Use the internal service name (`mongo`) and default port (`27017`) when connecting from within Docker Compose.

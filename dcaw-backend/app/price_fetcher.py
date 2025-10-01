@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 import os
 load_dotenv()
-currencyapi_api_key = os.getenv('CURRENCY_API_URL')
+
 
 # --- Preço do Bitcoin em USD e BRL via CoinGecko ---
 async def fetch_btc_prices() -> dict:
@@ -25,23 +25,9 @@ async def fetch_btc_prices() -> dict:
         print(f"Error fetching Bitcoin prices: {e}")
         return None
 
-# --- Cotação do USD para BRL via CurrencyAPI ---
-async def fetch_usd_brl_currencyapi() -> float:
-    # 300 requests/month free tier limit
-    url = "https://api.currencyapi.com/v3/latest"
-    api_key = currencyapi_api_key
-    params = {"apikey": api_key, "base_currency": "USD", "currencies": "BRL"}
-    try:
-        resp = requests.get(url, params=params)
-        resp.raise_for_status()
-        data = resp.json()
-        return data["data"]["BRL"]["value"]
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching USD/BRL rate from CurrencyAPI: {e}")
-        return None
 
 # --- Salvar preços no arquivo ---
-async def save_prices_to_file(btc_usd_price: float, btc_brl_price: float, usd_brl_currencyapi: float):
+async def save_prices_to_file(btc_usd_price: float, btc_brl_price: float):
     file_path = "bitcoin_price.json" # Caminho absoluto
     current_time = datetime.now(timezone.utc).isoformat()
 
@@ -60,7 +46,7 @@ async def save_prices_to_file(btc_usd_price: float, btc_brl_price: float, usd_br
         "btc_usd_price": btc_usd_price,
         "btc_brl_price": btc_brl_price,
         "last_updated": current_time,
-        "usd_brl_currencyapi": usd_brl_currencyapi,
+        
         "usd_brl_calculated": usd_brl_calculated
     })
 
@@ -70,10 +56,9 @@ async def save_prices_to_file(btc_usd_price: float, btc_brl_price: float, usd_br
 
 async def price_fetching_scheduler():
     btc_prices = await fetch_btc_prices()
-    usd_brl_currencyapi = await fetch_usd_brl_currencyapi()
 
-    if btc_prices and usd_brl_currencyapi is not None:
-        await save_prices_to_file(btc_prices["btc_usd_price"], btc_prices["btc_brl_price"], usd_brl_currencyapi)
+    if btc_prices is not None:
+        await save_prices_to_file(btc_prices["btc_usd_price"], btc_prices["btc_brl_price"])
 
     btc_fetch_interval = 60 # seconds
     usd_brl_fetch_interval = 3 * 3600 # 3 hours in seconds
@@ -90,17 +75,9 @@ async def price_fetching_scheduler():
             new_btc_prices = await fetch_btc_prices()
             if new_btc_prices:
                 btc_prices = new_btc_prices
-                await save_prices_to_file(btc_prices["btc_usd_price"], btc_prices["btc_brl_price"], usd_brl_currencyapi)
+                await save_prices_to_file(btc_prices["btc_usd_price"], btc_prices["btc_brl_price"])
             last_btc_fetch_time = now
 
-        # Fetch USD/BRL rate every 3 hours
-        if (now - last_usd_brl_fetch_time).total_seconds() >= usd_brl_fetch_interval:
-            print("Fetching USD/BRL rate...")
-            new_usd_brl_currencyapi = await fetch_usd_brl_currencyapi()
-            if new_usd_brl_currencyapi is not None:
-                usd_brl_currencyapi = new_usd_brl_currencyapi
-                await save_prices_to_file(btc_prices["btc_usd_price"], btc_prices["btc_brl_price"], usd_brl_currencyapi)
-            last_usd_brl_fetch_time = now
 
         await asyncio.sleep(1) # Check every second for due tasks
 
