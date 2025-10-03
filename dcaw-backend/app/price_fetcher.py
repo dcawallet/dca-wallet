@@ -1,86 +1,95 @@
-import requests
 import asyncio
-import json
-from datetime import datetime, timezone
-
-#IMPORT API KEY FROM .env file
+from datetime import datetime, timezone, timedelta
+import requests
 from dotenv import load_dotenv
 import os
+
+from app.db.connection import db
+
 load_dotenv()
 
+COINGECKO_API_KEY = os.getenv("COINGECKO_API_KEY")
+MAX_RECORDS = 144
 
-# --- Preço do Bitcoin em USD e BRL via CoinGecko ---
+# --- CoinGecko API Functions ---
+
+def get_coingecko_headers() -> dict:
+    """Returns headers for CoinGecko API, including the API key if available."""
+    headers = {"accept": "application/json"}
+    if COINGECKO_API_KEY:
+        headers["x-cg-demo-api-key"] = COINGECKO_API_KEY
+    return headers
+
 async def fetch_btc_prices() -> dict:
+    """Fetches the current BTC price in USD and BRL from CoinGecko."""
     url = "https://api.coingecko.com/api/v3/simple/price"
     params = {"ids": "bitcoin", "vs_currencies": "usd,brl"}
+    headers = get_coingecko_headers()
+    
     try:
-        resp = requests.get(url, params=params)
-        resp.raise_for_status()  # Raise an exception for bad status codes
+        loop = asyncio.get_running_loop()
+        resp = await loop.run_in_executor(None, lambda: requests.get(url, params=params, headers=headers))
+        resp.raise_for_status()
         data = resp.json()
+        
+        btc_usd = data["bitcoin"]["usd"]
+        btc_brl = data["bitcoin"]["brl"]
+        usd_brl_calculated = btc_brl / btc_usd if btc_usd else 0
+        
         return {
-            "btc_usd_price": data["bitcoin"]["usd"],
-            "btc_brl_price": data["bitcoin"]["brl"]
+            "btc_usd_price": btc_usd,
+            "btc_brl_price": btc_brl,
+            "usd_brl_calculated": round(usd_brl_calculated, 4),
+            "last_updated": datetime.now(timezone.utc).isoformat()
         }
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching Bitcoin prices: {e}")
+        print(f"Error fetching current Bitcoin prices: {e}")
         return None
 
+# --- Database Functions ---
 
-# --- Salvar preços no arquivo ---
-async def save_prices_to_file(btc_usd_price: float, btc_brl_price: float):
-    file_path = "bitcoin_price.json" # Caminho absoluto
-    current_time = datetime.now(timezone.utc).isoformat()
+async def initialize_price_collection():
+    """
+    Ensures the capped collection for prices exists.
+    Population is no longer done here; it happens organically via the scheduler.
+    """
+    database = db.db
+    collection_name = "last_24h_price"
+    
+    if collection_name not in await database.list_collection_names():
+        await database.create_collection(collection_name, capped=True, size=1000000, max=MAX_RECORDS)
+        print(f"Created capped collection '{collection_name}'.")
 
-    # Calcular usd_brl_calculated
-    usd_brl_calculated = btc_brl_price / btc_usd_price if btc_usd_price else 0
+async def save_price_to_db(price_data: dict):
+    price_collection = db.db["last_24h_price"]
+    document = {
+        "timestamp": datetime.fromisoformat(price_data["last_updated"]),
+        "btc_usd_price": price_data["btc_usd_price"],
+        "btc_brl_price": price_data["btc_brl_price"]
+    }
+    await price_collection.insert_one(document)
+    print(f"Saved new price record to DB at {price_data['last_updated']}.")
 
-    # Read existing content if available to preserve other potential fields
-    try:
-        with open(file_path, 'r') as f:
-            existing_data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        existing_data = {}
-
-    # Update only the relevant fields
-    existing_data.update({
-        "btc_usd_price": btc_usd_price,
-        "btc_brl_price": btc_brl_price,
-        "last_updated": current_time,
-        
-        "usd_brl_calculated": usd_brl_calculated
-    })
-
-    with open(file_path, 'w') as f:
-        json.dump(existing_data, f, indent=4)
-    print(f"Prices saved to {file_path}")
-
+# --- Main Scheduler ---
 async def price_fetching_scheduler():
-    btc_prices = await fetch_btc_prices()
-
-    if btc_prices is not None:
-        await save_prices_to_file(btc_prices["btc_usd_price"], btc_prices["btc_brl_price"])
-
-    btc_fetch_interval = 60 # seconds
-    usd_brl_fetch_interval = 3 * 3600 # 3 hours in seconds
-
-    last_btc_fetch_time = datetime.now(timezone.utc)
-    last_usd_brl_fetch_time = datetime.now(timezone.utc)
+    print("Initializing price fetching scheduler...")
+    await asyncio.sleep(5) 
+    await initialize_price_collection()
+    
+    fetch_interval = 60
+    save_interval = 600
+    last_fetch_time = datetime.now(timezone.utc) - timedelta(seconds=fetch_interval)
+    last_save_time = datetime.now(timezone.utc) - timedelta(seconds=save_interval)
 
     while True:
         now = datetime.now(timezone.utc)
-
-        # Fetch BTC prices every 60 seconds
-        if (now - last_btc_fetch_time).total_seconds() >= btc_fetch_interval:
+        if (now - last_fetch_time).total_seconds() >= fetch_interval:
             print("Fetching Bitcoin prices...")
-            new_btc_prices = await fetch_btc_prices()
-            if new_btc_prices:
-                btc_prices = new_btc_prices
-                await save_prices_to_file(btc_prices["btc_usd_price"], btc_prices["btc_brl_price"])
-            last_btc_fetch_time = now
+            last_fetch_time = now
+            btc_prices = await fetch_btc_prices()
 
-
-        await asyncio.sleep(1) # Check every second for due tasks
-
-if __name__ == "__main__":
-    print("Starting price fetching scheduler...")
-    asyncio.run(price_fetching_scheduler())
+            if btc_prices and (now - last_save_time).total_seconds() >= save_interval:
+                print("10-minute interval reached. Saving price to database...")
+                await save_price_to_db(btc_prices)
+                last_save_time = now
+        await asyncio.sleep(5)

@@ -292,22 +292,75 @@ curl -X POST "http://localhost:8000/api/import/coinmarketcap" \
 
 ## Price Data (Dados de Preço)
 
-### 1. Obter Dados Atuais do Preço do Bitcoin (`GET /api/price/bitcoin_price`)
+### 1. Obter Preço Atual do Bitcoin (`GET /api/prices/now`)
 
-Esta rota retorna os preços atuais do Bitcoin em USD e BRL, a taxa de câmbio USD/BRL da CurrencyAPI e a taxa USD/BRL calculada a partir dos preços do BTC.
+Retorna o preço do Bitcoin (USD/BRL) em tempo real, buscando diretamente da API externa a cada chamada.
 
 ```bash
-curl -X GET "http://localhost:8000/api/price/bitcoin_price"
+curl -X GET "http://localhost:8000/api/prices/now"
 ```
 
 **Exemplo de Resposta:**
-
 ```json
 {
-    "btc_usd_price": 70000.00,
-    "btc_brl_price": 350000.00,
-    "last_updated": "2025-09-17T18:45:37.058943+00:00",
-    "usd_brl_currencyapi": 5.00,
-    "usd_brl_calculated": 5.00
+  "btc_usd_price": 68500.75,
+  "btc_brl_price": 342503.25,
+  "usd_brl_calculated": 5.0,
+  "last_updated": "2025-10-01T18:30:00.123456+00:00"
+}
+```
+
+### 2. Obter Preços Históricos (24h, 7d, 30d, 90d, 365d)
+
+#### Obter Preços das Últimas 24 Horas (`GET /api/prices/24h`)
+
+Retorna os últimos 144 registros de preço armazenados localmente (aproximadamente a cada 10 minutos).
+
+```bash
+curl -X GET "http://localhost:8000/api/prices/24h"
+```
+
+**Exemplo de Resposta:**
+```json
+{
+  "prices_usd": [
+    [1727768400000, 68000.50],
+    [1727767800000, 68010.25]
+  ],
+  "prices_brl": [
+    [1727768400000, 340002.50],
+    [1727767800000, 340051.25]
+  ]
+}
+```
+
+#### Obter Preços dos Últimos 7 Dias (`GET /api/prices/7d`)
+
+Busca os dados diários diretamente do CoinGecko.
+
+```bash
+curl -X GET "http://localhost:8000/api/prices/7d"
+```
+
+#### Outros Períodos
+
+Você pode usar `30d`, `90d`, e `365d` para obter os respectivos períodos.
+
+```bash
+# Exemplo para 90 dias
+curl -X GET "http://localhost:8000/api/prices/90d"
+```
+
+**Exemplo de Resposta para `/7d` e outros:**
+```json
+{
+  "prices_usd": [
+    [1727136000000, 67500.00],
+    [1727222400000, 67800.00]
+  ],
+  "prices_brl": [
+    [1727136000000, 337500.00],
+    [1727222400000, 339000.00]
+  ]
 }
 ```
