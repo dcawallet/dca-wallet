@@ -13,6 +13,8 @@ from app.routes.user import user_router
 from app.routes.imports import import_router # Import the new import router
 from app.routes.price import router as price_router # Import the new price router
 
+from app.scheduler import init_scheduler
+
 print("Running DCA Wallet Backend Swagger on: http://localhost:8000/docs")
 load_dotenv() # Carrega as variáveis de ambiente do .env
 
@@ -36,6 +38,7 @@ async def start_dca_scheduler():
 async def startup_event():
     # The connect_db function is already in the on_startup list of FastAPI
     # We create the task here to ensure the DB is connected first
+    init_scheduler()  # Initialize the new summary scheduler
     asyncio.create_task(start_dca_scheduler())
     asyncio.create_task(price_fetching_scheduler())
 
