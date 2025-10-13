@@ -30,6 +30,8 @@ Este é o backend do projeto DCA Wallet, construído com FastAPI e MongoDB.
 - `@documentation.md`: Para detalhes técnicos adicionais, estrutura de diretórios e variáveis de ambiente.
 - `@app/main.py`: Ponto de entrada da aplicação FastAPI.
 - `@requirements.txt`: Dependências do projeto.
+- `@api_examples.md`: Exemplos corretos de todas APIS do projeto.
 
 **Instrução para Goose:**
 Se não tiver certeza de ≥ 95% sobre o que deve ser feito, peça esclarecimentos antes de agir.
+NUNCA LEIA A PASTA .VENV, pois é o ambiente virtual python.

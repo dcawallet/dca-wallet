@@ -310,57 +310,51 @@ curl -X GET "http://localhost:8000/api/prices/now"
 }
 ```
 
-### 2. Obter Preços Históricos (24h, 7d, 30d, 90d, 365d)
+### 2. Obter Dados Históricos do Portfólio para Gráfico (`GET /api/prices/{timespan}`)
 
-#### Obter Preços das Últimas 24 Horas (`GET /api/prices/24h`)
+Retorna o histórico do portfólio e um resumo de performance para uma carteira específica, pronto para ser exibido em um gráfico.
 
-Retorna os últimos 144 registros de preço armazenados localmente (aproximadamente a cada 10 minutos).
+**Parâmetros:**
+- `timespan`: `7d`, `30d`, `90d`, `365d`
+- `wallet_id`: O ID da carteira a ser analisada (obrigatório)
+
+#### Exemplo para 30 dias
 
 ```bash
-curl -X GET "http://localhost:8000/api/prices/24h"
+# Substitua YOUR_WALLET_ID_HERE pelo ID da sua carteira
+curl -X GET "http://localhost:8000/api/prices/30d?wallet_id=YOUR_WALLET_ID_HERE"
 ```
 
 **Exemplo de Resposta:**
 ```json
 {
-  "prices_usd": [
-    [1727768400000, 68000.50],
-    [1727767800000, 68010.25]
+  "wallet_id": "68c9aedd788d74c2a040e81d",
+  "timespan": "30d",
+  "portfolio_history": [
+    {
+      "date": "2025-09-10",
+      "btc_price_usd": 65200.32,
+      "btc_balance": 0.124,
+      "portfolio_value_usd": 8084.84
+    },
+    {
+      "date": "2025-09-11",
+      "btc_price_usd": 65810.25,
+      "btc_balance": 0.124,
+      "portfolio_value_usd": 8168.47
+    }
   ],
-  "prices_brl": [
-    [1727768400000, 340002.50],
-    [1727767800000, 340051.25]
-  ]
-}
-```
-
-#### Obter Preços dos Últimos 7 Dias (`GET /api/prices/7d`)
-
-Busca os dados diários diretamente do CoinGecko.
-
-```bash
-curl -X GET "http://localhost:8000/api/prices/7d"
-```
-
-#### Outros Períodos
-
-Você pode usar `30d`, `90d`, e `365d` para obter os respectivos períodos.
-
-```bash
-# Exemplo para 90 dias
-curl -X GET "http://localhost:8000/api/prices/90d"
-```
-
-**Exemplo de Resposta para `/7d` e outros:**
-```json
-{
-  "prices_usd": [
-    [1727136000000, 67500.00],
-    [1727222400000, 67800.00]
-  ],
-  "prices_brl": [
-    [1727136000000, 337500.00],
-    [1727222400000, 339000.00]
-  ]
+  "summary": {
+    "initial_value_usd": 7850.42,
+    "final_value_usd": 8450.73,
+    "absolute_change_usd": 600.31,
+    "percent_change": 7.64,
+    "btc_price_start": 65000.10,
+    "btc_price_end": 70123.45,
+    "btc_price_change_percent": 7.88,
+    "max_value_usd": 8700.12,
+    "min_value_usd": 7800.22,
+    "average_value_usd": 8285.34
+  }
 }
 ```
