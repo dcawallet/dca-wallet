@@ -34,7 +34,7 @@ async def calculate_portfolio_performance(wallet_id: str, timespan: str):
     start_date = end_date - timedelta(days=days)
 
     transaction_collection = db.db["transactions"]
-    transactions = await transaction_collection.find({
+    all_transactions = await transaction_collection.find({
         "wallet_id": wallet_id,
         "transaction_date": {"$lte": end_date}
     }).sort("transaction_date", 1).to_list(length=None)
@@ -42,7 +42,7 @@ async def calculate_portfolio_performance(wallet_id: str, timespan: str):
     portfolio_history = []
     daily_btc_balance = 0
 
-    initial_transactions = [t for t in transactions if t["transaction_date"] < start_date]
+    initial_transactions = [t for t in all_transactions if t["transaction_date"] < start_date]
     for trans in initial_transactions:
         if "buy" in trans["transaction_type"]:
             daily_btc_balance += trans["amount_btc"]
@@ -51,11 +51,30 @@ async def calculate_portfolio_performance(wallet_id: str, timespan: str):
 
     price_map = {datetime.fromtimestamp(p[0] / 1000).strftime('%Y-%m-%d'): p[1] for p in prices_usd}
 
+    transactions_in_timespan = [t for t in all_transactions if t["transaction_date"] >= start_date]
+    transactions_by_day = {}
+    for t in transactions_in_timespan:
+        day_str = t["transaction_date"].strftime('%Y-%m-%d')
+        if day_str not in transactions_by_day:
+            transactions_by_day[day_str] = []
+        
+        direction = "buy" if "buy" in t["transaction_type"] else "sell"
+        
+        transactions_by_day[day_str].append({
+            "transaction_type": t["transaction_type"],
+            "direction": direction,
+            "amount_btc": t["amount_btc"],
+            "price_per_btc_usd": t["price_per_btc_usd"],
+            "currency": t["currency"],
+            "transaction_date": t["transaction_date"].isoformat()
+        })
+
     current_day = start_date
     while current_day <= end_date:
         day_str = current_day.strftime('%Y-%m-%d')
-        day_transactions = [t for t in transactions if t["transaction_date"].strftime('%Y-%m-%d') == day_str]
-        for trans in day_transactions:
+        
+        day_transactions_for_balance = [t for t in transactions_in_timespan if t["transaction_date"].strftime('%Y-%m-%d') == day_str]
+        for trans in day_transactions_for_balance:
             if "buy" in trans["transaction_type"]:
                 daily_btc_balance += trans["amount_btc"]
             elif "sell" in trans["transaction_type"]:
@@ -68,7 +87,8 @@ async def calculate_portfolio_performance(wallet_id: str, timespan: str):
             "date": day_str,
             "btc_price_usd": btc_price_usd,
             "btc_balance": daily_btc_balance,
-            "portfolio_value_usd": portfolio_value_usd
+            "portfolio_value_usd": portfolio_value_usd,
+            "transactions": transactions_by_day.get(day_str, [])
         })
         current_day += timedelta(days=1)
 
