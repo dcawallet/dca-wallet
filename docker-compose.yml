@@ -10,7 +10,7 @@ services:
   backend:
     build: ./dcaw-backend
     ports:
-      - "8000:8000"
+      - "2009:2009"
     volumes:
       - ./dcaw-backend:/app
     environment:
