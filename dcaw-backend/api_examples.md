@@ -85,11 +85,26 @@ curl -X POST "http://localhost:8000/api/wallets/blockchain-sync" \
   "label": "Carteira BTC Sincronizada",
   "wallet_address": "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
   "currency": "USD",
-  "notes": "Carteira que buscará transações na blockchain (funcionalidade futura)."
+  "notes": "Carteira que busca transações na blockchain."
 }'
 ```
 
-### 4. Listar Todas as Carteiras (`GET /api/wallets/`)
+### 4. Recarregar e Atualizar Carteiras Sincronizadas (`POST /api/wallets/reload-synced`)
+
+```bash
+# Substitua $TOKEN pelo seu token JWT real
+curl -X POST "http://localhost:8000/api/wallets/reload-synced" \
+-H "Authorization: Bearer $TOKEN" \
+-H "Content-Type: application/json" \
+-d '{
+  "addresses": [
+    "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
+    "ANOTHER_WALLET_ADDRESS"
+  ]
+}'
+```
+
+### 5. Listar Todas as Carteiras (`GET /api/wallets/`)
 
 ```bash
 # Substitua $TOKEN pelo seu token JWT real
@@ -97,7 +112,7 @@ curl -X GET "http://localhost:8000/api/wallets/" \
 -H "Authorization: Bearer $TOKEN"
 ```
 
-### 5. Obter Detalhes de uma Carteira Específica (`GET /api/wallets/{wallet_id}`)
+### 6. Obter Detalhes de uma Carteira Específica (`GET /api/wallets/{wallet_id}`)
 
 ```bash
 # Substitua YOUR_WALLET_ID_HERE pelo ID de uma carteira existente
@@ -106,7 +121,7 @@ curl -X GET "http://localhost:8000/api/wallets/YOUR_WALLET_ID_HERE" \
 -H "Authorization: Bearer $TOKEN"
 ```
 
-### 6. Configurar Modo DCA para uma Carteira (`PUT /api/wallets/{wallet_id}/dca`)
+### 7. Configurar Modo DCA para uma Carteira (`PUT /api/wallets/{wallet_id}/dca`)
 
 ```bash
 # Substitua YOUR_WALLET_ID_HERE pelo ID da carteira que deseja configurar
@@ -135,7 +150,7 @@ curl -X PUT "http://localhost:8000/api/wallets/YOUR_WALLET_ID_HERE/dca" \
 }'
 ```
 
-### 7. Desativar Modo DCA para uma Carteira (`PUT /api/wallets/{wallet_id}/dca`)
+### 8. Desativar Modo DCA para uma Carteira (`PUT /api/wallets/{wallet_id}/dca`)
 
 ```bash
 # Substitua YOUR_WALLET_ID_HERE pelo ID da carteira que deseja desativar o DCA
