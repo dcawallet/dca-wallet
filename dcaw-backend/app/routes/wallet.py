@@ -2,7 +2,9 @@ from fastapi import APIRouter, HTTPException, Body, status, Depends
 from app.models.wallet import WalletCreate, WalletOut, DCAConfiguration
 from app.models.models import User # Import User model to use with get_current_user
 from app.core.security import get_current_user # Import security dependency
-from app.db.connection import db # Use db from connection instead of direct wallets_collection
+from app.price_fetcher import fetch_btc_historical_price
+from app.services.blockchain import fetch_transactions_from_blockchain
+from app.db.connection import db
 from bson.objectid import ObjectId
 from datetime import datetime
 from typing import List, Optional
@@ -125,32 +127,187 @@ async def create_blockchain_synced_wallet(
     """
     Create a new wallet for the authenticated user by fetching data from the blockchain for a given address.
     """
-    # Placeholder for blockchain data fetching
-    synced_transactions = []
-    current_btc_balance = 0.0
+    # Check if a wallet with this address already exists for the user
+    existing_wallet = await db.db.wallets.find_one({
+        "wallet_address": wallet_address,
+        "user_id": str(current_user.id)
+    })
+    
+    if existing_wallet:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A wallet with this address already exists. Use the reload endpoint to update."
+        )
 
+    # Fetch transactions from the blockchain
+    transactions_data = await fetch_transactions_from_blockchain(wallet_address)
+    
+    # Process transactions to calculate balance and format for storage
+    synced_transactions_for_wallet = []
+    current_btc_balance = 0
+    
+    for tx in transactions_data:
+        is_incoming = any(vout["scriptpubkey_address"] == wallet_address for vout in tx["vout"])
+        
+        amount = 0
+        if is_incoming:
+            amount = sum(vout["value"] for vout in tx["vout"] if vout["scriptpubkey_address"] == wallet_address)
+        else:
+            amount = -sum(vin["prevout"]["value"] for vin in tx["vin"] if vin["prevout"]["scriptpubkey_address"] == wallet_address)
+
+        current_btc_balance += amount
+        
+        synced_transactions_for_wallet.append({
+            "txid": tx["txid"],
+            "amount": amount / 10**8,
+            "timestamp": datetime.fromtimestamp(tx["status"]["block_time"]),
+            "is_incoming": is_incoming,
+        })
+    
+    current_btc_balance_btc = current_btc_balance / 10**8
+    
+    # Create new wallet
     wallet_data = {
         "label": label,
         "addresses": [wallet_address],
         "currency": currency,
         "notes": notes,
-        "btc_holdings": current_btc_balance,
+        "btc_holdings": current_btc_balance_btc,
         "is_blockchain_synced": True,
         "wallet_address": wallet_address,
-        "synced_transactions": synced_transactions,
-        "current_btc_balance": current_btc_balance,
+        "synced_transactions": synced_transactions_for_wallet,
+        "current_btc_balance": current_btc_balance_btc,
         "dca_enabled": False,
-        "dca_settings": [], # Initialize empty DCA settings for blockchain-synced wallets
-        "user_id": str(current_user.id) # Assign wallet to the current user
+        "dca_settings": [],
     }
 
     doc = WalletCreate(**wallet_data).dict(exclude_unset=True)
     doc["created_at"] = datetime.utcnow()
+    doc["user_id"] = str(current_user.id)
     result = await db.db.wallets.insert_one(doc)
-    created_wallet = await db.db.wallets.find_one({"_id": result.inserted_id})
-    if not created_wallet:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create blockchain-synced wallet.")
+    created_wallet_doc = await db.db.wallets.find_one({"_id": result.inserted_id})
     
-    created_wallet["id"] = str(created_wallet["_id"])
-    del created_wallet["_id"]
-    return WalletOut(**created_wallet)
+    if not created_wallet_doc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create blockchain-synced wallet."
+        )
+    
+    wallet_id = str(created_wallet_doc["_id"])
+
+    # Now, create the transaction documents
+    for tx_data in transactions_data:
+        # Check for duplicates in the transactions collection
+        if not await db.db.transactions.find_one({"txid": tx_data["txid"]}):
+            is_incoming = any(vout["scriptpubkey_address"] == wallet_address for vout in tx_data["vout"])
+            
+            amount = 0
+            if is_incoming:
+                amount = sum(vout["value"] for vout in tx_data["vout"] if vout["scriptpubkey_address"] == wallet_address)
+            else:
+                amount = -sum(vin["prevout"]["value"] for vin in tx_data["vin"] if vin["prevout"]["scriptpubkey_address"] == wallet_address)
+
+            transaction_date = datetime.fromtimestamp(tx_data["status"]["block_time"])
+            price_at_transaction_date = await fetch_btc_historical_price(transaction_date)
+            
+            new_transaction_doc = {
+                "wallet_id": wallet_id,
+                "transaction_type": "blockchain_in" if is_incoming else "blockchain_out",
+                "amount_btc": amount / 10**8,
+                "price_per_btc_usd": price_at_transaction_date,
+                "total_value_usd": (amount / 10**8) * price_at_transaction_date,
+                "transaction_date": transaction_date,
+                "txid": tx_data["txid"],
+            }
+            await db.db.transactions.insert_one(new_transaction_doc)
+            
+    created_wallet_doc["id"] = wallet_id
+    del created_wallet_doc["_id"]
+    return WalletOut(**created_wallet_doc)
+
+
+@router.post("/reload-synced", summary="Reload and update synced wallets")
+async def reload_synced_wallets(
+    addresses: List[str] = Body(..., embed=True),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Reload and update one or more blockchain-synced wallets with new transactions.
+    """
+    reloaded_wallets = []
+    
+    for address in addresses:
+        wallet = await db.db.wallets.find_one({
+            "wallet_address": address,
+            "user_id": str(current_user.id),
+            "is_blockchain_synced": True
+        })
+        
+        if not wallet:
+            continue
+            
+        transactions_data = await fetch_transactions_from_blockchain(address)
+        
+        existing_tx_ids_in_wallet = {tx["txid"] for tx in wallet.get("synced_transactions", [])}
+        
+        new_transactions_to_sync = []
+        new_btc_balance = wallet.get("btc_holdings", 0.0) * 10**8
+        
+        for tx in transactions_data:
+            if tx["txid"] not in existing_tx_ids_in_wallet:
+                # Check for txid existence in the main transactions collection to prevent duplicates
+                existing_transaction = await db.db.transactions.find_one({"txid": tx["txid"]})
+                if existing_transaction:
+                    continue
+
+                is_incoming = any(vout["scriptpubkey_address"] == address for vout in tx["vout"])
+                
+                amount = 0
+                if is_incoming:
+                    amount = sum(vout["value"] for vout in tx["vout"] if vout["scriptpubkey_address"] == address)
+                else:
+                    amount = -sum(vin["prevout"]["value"] for vin in tx["vin"] if vin["prevout"]["scriptpubkey_address"] == address)
+
+                new_btc_balance += amount
+                
+                # Fetch historical price for the transaction date
+                transaction_date = datetime.fromtimestamp(tx["status"]["block_time"])
+                price_at_transaction_date = await fetch_btc_historical_price(transaction_date)
+                
+                # Create a new transaction document
+                new_transaction_doc = {
+                    "wallet_id": str(wallet["_id"]),
+                    "transaction_type": "blockchain_in" if is_incoming else "blockchain_out",
+                    "amount_btc": amount / 10**8,
+                    "price_per_btc_usd": price_at_transaction_date,
+                    "total_value_usd": (amount / 10**8) * price_at_transaction_date,
+                    "transaction_date": transaction_date,
+                    "txid": tx["txid"],
+                }
+                
+                # Insert into the transactions collection
+                await db.db.transactions.insert_one(new_transaction_doc)
+                
+                # Append to the list for wallet's synced_transactions
+                new_transactions_to_sync.append({
+                    "txid": tx["txid"],
+                    "amount": amount / 10**8,
+                    "timestamp": datetime.fromtimestamp(tx["status"]["block_time"]),
+                    "is_incoming": is_incoming,
+                })
+
+        if new_transactions_to_sync:
+            await db.db.wallets.update_one(
+                {"_id": wallet["_id"]},
+                {
+                    "$push": {"synced_transactions": {"$each": new_transactions_to_sync}},
+                    "$set": {"btc_holdings": new_btc_balance / 10**8}
+                }
+            )
+        
+        reloaded_wallet = await db.db.wallets.find_one({"_id": wallet["_id"]})
+        reloaded_wallet["id"] = str(reloaded_wallet["_id"])
+        del reloaded_wallet["_id"]
+        reloaded_wallets.append(WalletOut(**reloaded_wallet))
+        
+    return reloaded_wallets
