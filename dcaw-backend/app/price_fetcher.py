@@ -93,3 +93,27 @@ async def price_fetching_scheduler():
                 await save_price_to_db(btc_prices)
                 last_save_time = now
         await asyncio.sleep(5)
+
+
+async def fetch_btc_historical_price(date: datetime) -> float:
+    """Fetches the historical BTC price in USD for a given date from CoinGecko."""
+    # CoinGecko API requires date in dd-mm-yyyy format
+    date_str = date.strftime("%d-%m-%Y")
+    url = f"https://api.coingecko.com/api/v3/coins/bitcoin/history?date={date_str}"
+    headers = get_coingecko_headers()
+    
+    try:
+        loop = asyncio.get_running_loop()
+        resp = await loop.run_in_executor(None, lambda: requests.get(url, headers=headers))
+        resp.raise_for_status()
+        data = resp.json()
+        
+        if "market_data" in data and "current_price" in data["market_data"] and "usd" in data["market_data"]["current_price"]:
+            return data["market_data"]["current_price"]["usd"]
+        else:
+            print(f"Warning: Could not find historical price for {date_str}. Response: {data}")
+            return 0.0  # Return 0 if price not found, so it doesn't break calculations
+            
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching historical Bitcoin price for {date_str}: {e}")
+        return 0.0 # Return 0 on error
