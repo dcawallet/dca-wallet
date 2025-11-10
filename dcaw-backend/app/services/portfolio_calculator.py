@@ -118,4 +118,4 @@ async def calculate_portfolio_performance(wallet_id: str, timespan: str):
         "average_value_usd": sum(portfolio_values) / len(portfolio_values) if portfolio_values else 0
     }
 
-    return {"portfolio_history": portfolio_history, "summary": summary}
+    return {"portfolio_history": portfolio_history, "summary": summary, "transactions": transactions_by_day}

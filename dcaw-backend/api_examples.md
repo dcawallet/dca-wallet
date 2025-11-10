@@ -370,6 +370,19 @@ curl -X GET "http://localhost:8000/api/prices/30d?wallet_id=YOUR_WALLET_ID_HERE"
     "max_value_usd": 8700.12,
     "min_value_usd": 7800.22,
     "average_value_usd": 8285.34
+  },
+  "transactions_by_day": {
+    "2025-09-10": [
+      {
+        "transaction_type": "manual_buy",
+        "direction": "buy",
+        "amount_btc": 0.001,
+        "price_per_btc_usd": 65000.00,
+        "currency": "USD",
+        "transaction_date": "2025-09-10T12:00:00"
+      }
+    ],
+    "2025-09-11": []
   }
 }
 ```
