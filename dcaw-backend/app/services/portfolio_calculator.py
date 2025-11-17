@@ -21,10 +21,18 @@ async def calculate_portfolio_performance(wallet_id: str, timespan: str):
     Calculates portfolio history and performance summary for a specific wallet and timespan.
     """
     days_map = {"7d": 7, "30d": 30, "90d": 90, "365d": 365}
-    if timespan not in days_map:
+    if timespan == "ALL":
+        transaction_collection = db.db["transactions"]
+        first_transaction = await transaction_collection.find({"wallet_id": wallet_id}).sort("transaction_date", 1).limit(1).to_list(length=1)
+        if not first_transaction:
+            raise ValueError("No transactions found for this wallet.")
+        first_transaction_date = first_transaction[0]["transaction_date"]
+        first_transaction_date = first_transaction_date - timedelta(days=2)
+        days = (datetime.utcnow() - first_transaction_date).days
+    elif timespan not in days_map:
         raise ValueError("Invalid timespan.")
-
-    days = days_map[timespan]
+    else:
+        days = days_map[timespan]
 
     prices_usd = await fetch_coingecko_market_chart(days, "usd")
     if not prices_usd:

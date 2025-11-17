@@ -24,11 +24,11 @@ async def get_historical_prices(
     """
     Returns the portfolio history and performance summary for a specific wallet
     over a given timespan and triggers background saving of the daily summary.
-    Supported timespans: `7d`, `30d`, `90d`, `365d`.
+    Supported timespans: `7d`, `30d`, `90d`, `365d`, `ALL`.
     """
     days_map = {"7d": 7, "30d": 30, "90d": 90, "365d": 365}
-    if timespan not in days_map:
-        raise HTTPException(status_code=400, detail="Invalid timespan. Supported values are: 7d, 30d, 90d, 365d.")
+    if timespan not in days_map and timespan != "ALL":
+        raise HTTPException(status_code=400, detail="Invalid timespan. Supported values are: 7d, 30d, 90d, 365d, all.")
 
     try:
         result = await calculate_portfolio_performance(wallet_id, timespan)

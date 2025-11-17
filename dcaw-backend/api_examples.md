@@ -333,18 +333,18 @@ Retorna o histórico do portfólio e um resumo de performance para uma carteira 
 - `timespan`: `7d`, `30d`, `90d`, `365d`
 - `wallet_id`: O ID da carteira a ser analisada (obrigatório)
 
-#### Exemplo para 30 dias
+#### Exemplo para Todos os Tempos (All)
 
 ```bash
 # Substitua YOUR_WALLET_ID_HERE pelo ID da sua carteira
-curl -X GET "http://localhost:8000/api/prices/30d?wallet_id=YOUR_WALLET_ID_HERE"
+curl -X GET "http://localhost:8000/api/prices/All?wallet_id=YOUR_WALLET_ID_HERE"
 ```
 
 **Exemplo de Resposta:**
 ```json
 {
   "wallet_id": "68c9aedd788d74c2a040e81d",
-  "timespan": "30d",
+  "timespan": "all",
   "portfolio_history": [
     {
       "date": "2025-09-10",
