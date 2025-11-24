@@ -160,7 +160,8 @@ async def create_blockchain_synced_wallet(
         synced_transactions_for_wallet.append({
             "txid": tx["txid"],
             "amount": amount / 10**8,
-            "timestamp": datetime.fromtimestamp(tx["status"]["block_time"]),
+            "timestamp": datetime.fromtimestamp(tx["status"].get("block_time")) if tx["status"].get("block_time") else None,
+            #"timestamp": datetime.fromtimestamp(tx["status"]["block_time"]),
             "is_incoming": is_incoming,
         })
     
@@ -207,7 +208,7 @@ async def create_blockchain_synced_wallet(
             else:
                 amount = -sum(vin["prevout"]["value"] for vin in tx_data["vin"] if vin["prevout"]["scriptpubkey_address"] == wallet_address)
 
-            transaction_date = datetime.fromtimestamp(tx_data["status"]["block_time"])
+            transaction_date = datetime.fromtimestamp(tx_data["status"].get("block_time", 0))
             price_at_transaction_date = await fetch_btc_historical_price(transaction_date)
             
             new_transaction_doc = {
@@ -272,7 +273,7 @@ async def reload_synced_wallets(
                 
                 # Fetch historical price for the transaction date
                 transaction_date = datetime.fromtimestamp(tx["status"]["block_time"])
-                price_at_transaction_date = await fetch_btc_historical_price(transaction_date)
+                price_at_transaction_date = await fetch_btc_historical_price(transaction_date) if transaction_date else None
                 
                 # Create a new transaction document
                 new_transaction_doc = {
@@ -292,7 +293,7 @@ async def reload_synced_wallets(
                 new_transactions_to_sync.append({
                     "txid": tx["txid"],
                     "amount": amount / 10**8,
-                    "timestamp": datetime.fromtimestamp(tx["status"]["block_time"]),
+                    "timestamp": datetime.fromtimestamp(tx["status"].get("block_time")) if tx["status"].get("block_time") else None,
                     "is_incoming": is_incoming,
                 })
 

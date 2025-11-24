@@ -27,19 +27,22 @@ async def calculate_portfolio_performance(wallet_id: str, timespan: str):
         if not first_transaction:
             raise ValueError("No transactions found for this wallet.")
         first_transaction_date = first_transaction[0]["transaction_date"]
-        first_transaction_date = first_transaction_date - timedelta(days=2)
+        
         days = (datetime.utcnow() - first_transaction_date).days
+        days = days + 1 if days > 0 else 1
+        
+        start_date = first_transaction_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = datetime.utcnow()
     elif timespan not in days_map:
         raise ValueError("Invalid timespan.")
     else:
         days = days_map[timespan]
+        end_date = datetime.utcnow()
+        start_date = end_date - timedelta(days=days)
 
     prices_usd = await fetch_coingecko_market_chart(days, "usd")
     if not prices_usd:
         raise HTTPException(status_code=503, detail="Failed to fetch complete price data.")
-
-    end_date = datetime.utcnow()
-    start_date = end_date - timedelta(days=days)
 
     transaction_collection = db.db["transactions"]
     all_transactions = await transaction_collection.find({
@@ -49,24 +52,38 @@ async def calculate_portfolio_performance(wallet_id: str, timespan: str):
 
     portfolio_history = []
     daily_btc_balance = 0
+    total_invested_usd = 0
 
     initial_transactions = [t for t in all_transactions if t["transaction_date"] < start_date]
     for trans in initial_transactions:
         if "buy" in trans["transaction_type"] or "in" in trans["transaction_type"]:
             daily_btc_balance += trans["amount_btc"]
+            total_invested_usd += trans["amount_btc"] * trans["price_per_btc_usd"]
         elif "sell" in trans["transaction_type"] or "out" in trans["transaction_type"]:
             daily_btc_balance -= trans["amount_btc"]
+            total_invested_usd -= trans["amount_btc"] * trans["price_per_btc_usd"]
 
     price_map = {datetime.fromtimestamp(p[0] / 1000).strftime('%Y-%m-%d'): p[1] for p in prices_usd}
 
     transactions_in_timespan = [t for t in all_transactions if t["transaction_date"] >= start_date]
     transactions_by_day = {}
+    
+    contributions_during_period = 0
+    
     for t in transactions_in_timespan:
         day_str = t["transaction_date"].strftime('%Y-%m-%d')
         if day_str not in transactions_by_day:
             transactions_by_day[day_str] = []
         
         direction = "buy" if "buy" in t["transaction_type"] or "in" in t["transaction_type"] else "sell"
+        
+        transaction_value = t["amount_btc"] * t["price_per_btc_usd"]
+        if direction == "buy":
+            contributions_during_period += transaction_value
+            total_invested_usd += transaction_value
+        else:
+            contributions_during_period -= transaction_value
+            total_invested_usd -= transaction_value
         
         transactions_by_day[day_str].append({
             "transaction_type": t["transaction_type"],
@@ -103,27 +120,47 @@ async def calculate_portfolio_performance(wallet_id: str, timespan: str):
     if not portfolio_history:
         return {"portfolio_history": [], "summary": {}}
 
-    initial_value_usd = portfolio_history[0]["portfolio_value_usd"]
-    final_value_usd = portfolio_history[-1]["portfolio_value_usd"]
-    absolute_change_usd = final_value_usd - initial_value_usd
-    percent_change = (absolute_change_usd / initial_value_usd * 100) if initial_value_usd != 0 else 0
-    
-    btc_price_start = prices_usd[0][1]
-    btc_price_end = prices_usd[-1][1]
+    final_btc_balance = daily_btc_balance
+    final_value_usd = final_btc_balance * btc_price_usd
+    total_invested = total_invested_usd
+
+    profit_loss_usd = final_value_usd - total_invested
+    profit_loss_percent = (profit_loss_usd / total_invested * 100) if total_invested != 0 else 0
+
+    appreciation_usd = profit_loss_usd
+    appreciation_percent = profit_loss_percent
+
+    btc_price_start = prices_usd[0][1] if prices_usd else 0
+    btc_price_end = prices_usd[-1][1] if prices_usd else 0
     btc_price_change_percent = ((btc_price_end - btc_price_start) / btc_price_start * 100) if btc_price_start != 0 else 0
 
     portfolio_values = [p["portfolio_value_usd"] for p in portfolio_history]
+    
     summary = {
-        "initial_value_usd": initial_value_usd,
+        "appreciation_usd": appreciation_usd,
+        "appreciation_percent": appreciation_percent,
+        "profit_loss_usd": profit_loss_usd,
+        "profit_loss_percent": profit_loss_percent,
+        
+        "total_invested_usd": total_invested,
         "final_value_usd": final_value_usd,
-        "absolute_change_usd": absolute_change_usd,
-        "percent_change": percent_change,
+        
+        "final_btc_balance": final_btc_balance,
+        "average_buy_price_usd": total_invested / final_btc_balance if final_btc_balance > 0 else 0,
+        "current_btc_price_usd": btc_price_usd,
         "btc_price_start": btc_price_start,
         "btc_price_end": btc_price_end,
         "btc_price_change_percent": btc_price_change_percent,
+        
         "max_value_usd": max(portfolio_values) if portfolio_values else 0,
         "min_value_usd": min(portfolio_values) if portfolio_values else 0,
-        "average_value_usd": sum(portfolio_values) / len(portfolio_values) if portfolio_values else 0
+        "average_value_usd": sum(portfolio_values) / len(portfolio_values) if portfolio_values else 0,
+        
+        "contributions_during_period_usd": contributions_during_period
     }
 
-    return {"portfolio_history": portfolio_history, "summary": summary, "transactions": transactions_by_day}
+    return {
+        "portfolio_history": portfolio_history, 
+        "summary": summary, 
+        "transactions": transactions_by_day
+    }
