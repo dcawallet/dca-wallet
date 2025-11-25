@@ -32,8 +32,8 @@ Before getting started, make sure you have the following software installed:
 │ └── requirements.txt
 │
 ├── dca-frontend # React + Vite (dev and app separated)
-│ ├── dev/ # frontend source code, Node.js will run here
-│ ├── app/ # production build (generated automatically with `npm run build`)
+# │ ├── dev/ # frontend source code, Node.js will run here // removed to a private repository
+│ ├── app/ # production build
 │ ├── Dockerfile
 │ └── nginx.conf
 │
@@ -166,9 +166,5 @@ In the meantime, feel free to open **issues** or submit **pull requests**!
 
 ## 📍 Project Roadmap
 
-* Full DCA simulator
-* Integration with wallets via xpub
-* Chart exporting
-* "Educational" mode for beginners
-
+* To do
 ---
